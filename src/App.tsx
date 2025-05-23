@@ -43,7 +43,6 @@ function App() {
   // Totals
   const [categoryTotals, setCategoryTotals] = useState<CategoryTotals>({});
   const [afterTaxTotals, setAfterTaxTotals] = useState<CategoryTotals>({});
-  const [taxAdded, setTaxAdded] = useState(false);
 
   // Handle item input changes
   const handleItemChange = (field: keyof LineItem, value: string | boolean) => {
@@ -64,38 +63,31 @@ function App() {
     setCategoryTypeahead([]);
   };
 
-  // Calculate totals
+  // Calculate totals and after-tax as items are added
   useEffect(() => {
     const totals: CategoryTotals = {};
+    const afterTax: CategoryTotals = {};
+    const rate = parseFloat(taxRate) / 100;
     items.forEach((item) => {
       if (!totals[item.category]) {
         totals[item.category] = { total: 0, afterTax: null };
+        afterTax[item.category] = { total: 0, afterTax: 0 };
       }
       totals[item.category].total += item.price;
+      afterTax[item.category].total += item.price;
+      if (item.taxable) {
+        afterTax[item.category].afterTax! += item.price * (1 + rate);
+      } else {
+        afterTax[item.category].afterTax! += item.price;
+      }
+    });
+    // Round afterTax values
+    Object.keys(afterTax).forEach((cat) => {
+      afterTax[cat].afterTax = +afterTax[cat].afterTax!.toFixed(2);
     });
     setCategoryTotals(totals);
-    setAfterTaxTotals(
-      Object.fromEntries(Object.entries(totals).map(([cat, val]) => [cat, { ...val, afterTax: null }]))
-    );
-    setTaxAdded(false);
-  }, [items]);
-
-  // Add tax calculation
-  const handleAddTax = () => {
-    const rate = parseFloat(taxRate) / 100;
-    const newTotals: CategoryTotals = {};
-    Object.keys(categoryTotals).forEach((cat) => {
-      const catItems = items.filter((item) => item.category === cat);
-      const taxableSum = catItems.filter((i) => i.taxable).reduce((sum, i) => sum + i.price, 0);
-      const tax = taxableSum * rate;
-      newTotals[cat] = {
-        total: categoryTotals[cat].total,
-        afterTax: +(categoryTotals[cat].total + tax).toFixed(2),
-      };
-    });
-    setAfterTaxTotals(newTotals);
-    setTaxAdded(true);
-  };
+    setAfterTaxTotals(afterTax);
+  }, [items, taxRate]);
 
   // Render
   return (
@@ -215,7 +207,7 @@ function App() {
               <tr key={cat} className="border-t">
                 <td className="p-2">{cat}</td>
                 <td className="p-2">${val.total.toFixed(2)}</td>
-                <td className="p-2">{taxAdded && afterTaxTotals[cat]?.afterTax !== null ? `$${afterTaxTotals[cat].afterTax?.toFixed(2)}` : '---'}</td>
+                <td className="p-2">{afterTaxTotals[cat]?.afterTax !== null ? `$${afterTaxTotals[cat]?.afterTax?.toFixed(2)}` : '---'}</td>
               </tr>
             ))}
             <tr className="font-bold border-t">
@@ -224,19 +216,13 @@ function App() {
                 ${Object.values(categoryTotals).reduce((sum, val) => sum + val.total, 0).toFixed(2)}
               </td>
               <td className="p-2">
-                {taxAdded
+                {Object.values(afterTaxTotals).length
                   ? `$${Object.values(afterTaxTotals).reduce((sum, val) => sum + (val.afterTax ?? 0), 0).toFixed(2)}`
                   : '---'}
               </td>
             </tr>
           </tbody>
         </table>
-        <button
-          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-          onClick={handleAddTax}
-        >
-          Add Tax
-        </button>
       </div>
     </div>
   );
