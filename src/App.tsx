@@ -123,10 +123,10 @@ function App() {
 
   // Render
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-8">
-      <h1 className="text-3xl font-bold mb-4">Receipt Splitter</h1>
+    <div className="max-w-2xl mx-auto p-2 sm:p-6 space-y-8">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center">Receipt Splitter</h1>
       {/* Tax Rate Input */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
         <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700">Tax Rate (%)</label>
         <input
           id="taxRate"
@@ -135,17 +135,17 @@ function App() {
           step="0.01"
           value={taxRate}
           onChange={(e) => setTaxRate(e.target.value)}
-          className="w-32 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+          className="w-full sm:w-32 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
         />
       </div>
       {/* Line Item Entry */}
-      <div className="flex flex-col gap-2 border p-4 rounded-lg">
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-2 border p-2 sm:p-4 rounded-lg">
+        <div className="flex flex-col sm:flex-row gap-2 w-full">
           <input
             placeholder="Item Name (optional)"
             value={itemInput.name}
             onChange={(e) => handleItemChange('name', e.target.value)}
-            className="w-40 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full sm:w-40 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
           />
           <input
             placeholder="Price"
@@ -153,9 +153,9 @@ function App() {
             min="0"
             value={itemInput.price}
             onChange={(e) => handleItemChange('price', e.target.value)}
-            className="w-24 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full sm:w-24 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
           />
-          <div className="relative w-32">
+          <div className="relative w-full sm:w-32">
             <input
               ref={categoryInputRef}
               placeholder="Category"
@@ -165,7 +165,7 @@ function App() {
               autoComplete="off"
             />
             {categoryTypeahead.length > 0 && (
-              <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1">
+              <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-32 overflow-y-auto">
                 {categoryTypeahead.map((cat) => (
                   <div
                     key={cat}
@@ -194,15 +194,15 @@ function App() {
           </div>
           <button
             onClick={handleAddItem}
-            className="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            className="w-full sm:w-auto ml-0 sm:ml-2 px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
           >
             Add Item
           </button>
         </div>
       </div>
       {/* Items List */}
-      <div>
-        <table className="w-full border mt-4">
+      <div className="overflow-x-auto">
+        <table className="w-full border mt-4 text-sm">
           <thead>
             <tr className="bg-gray-100">
               <th className="p-2 text-left">Name</th>
@@ -221,7 +221,7 @@ function App() {
                       <input
                         value={editInput?.name || ''}
                         onChange={e => handleEditInputChange('name', e.target.value)}
-                        className="w-32 border-gray-300 rounded-md shadow-sm"
+                        className="w-full border-gray-300 rounded-md shadow-sm"
                       />
                     </td>
                     <td className="p-2">
@@ -230,14 +230,14 @@ function App() {
                         min="0"
                         value={editInput?.price || 0}
                         onChange={e => handleEditInputChange('price', e.target.value)}
-                        className="w-20 border-gray-300 rounded-md shadow-sm"
+                        className="w-full border-gray-300 rounded-md shadow-sm"
                       />
                     </td>
                     <td className="p-2">
                       <input
                         value={editInput?.category || ''}
                         onChange={e => handleEditInputChange('category', e.target.value)}
-                        className="w-24 border-gray-300 rounded-md shadow-sm"
+                        className="w-full border-gray-300 rounded-md shadow-sm"
                       />
                     </td>
                     <td className="p-2 text-center">
@@ -247,15 +247,15 @@ function App() {
                         onChange={e => handleEditInputChange('taxable', e.target.checked)}
                       />
                     </td>
-                    <td className="p-2 flex gap-2">
+                    <td className="p-2 flex flex-col sm:flex-row gap-2">
                       <button
-                        className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 w-full sm:w-auto"
                         onClick={() => handleSave(idx)}
                       >
                         Save
                       </button>
                       <button
-                        className="px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500"
+                        className="px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 w-full sm:w-auto"
                         onClick={handleCancel}
                       >
                         Cancel
@@ -272,7 +272,7 @@ function App() {
                     <td className="p-2 text-center">{item.taxable ? '✔️' : ''}</td>
                     <td className="p-2">
                       <button
-                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 w-full sm:w-auto"
                         onClick={() => handleEdit(idx)}
                       >
                         Edit
@@ -286,9 +286,9 @@ function App() {
         </table>
       </div>
       {/* Totals Section */}
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-2">Totals</h2>
-        <table className="w-full border">
+      <div className="mt-8 overflow-x-auto">
+        <h2 className="text-xl font-semibold mb-2 text-center sm:text-left">Totals</h2>
+        <table className="w-full border text-sm">
           <thead>
             <tr className="bg-gray-100">
               <th className="p-2 text-left">Category</th>
