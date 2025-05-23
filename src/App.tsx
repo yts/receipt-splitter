@@ -44,6 +44,10 @@ function App() {
   const [categoryTotals, setCategoryTotals] = useState<CategoryTotals>({});
   const [afterTaxTotals, setAfterTaxTotals] = useState<CategoryTotals>({});
 
+  // Editing state
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editInput, setEditInput] = useState<LineItem | null>(null);
+
   // Handle item input changes
   const handleItemChange = (field: keyof LineItem, value: string | boolean) => {
     setItemInput((prev) => ({ ...prev, [field]: value }));
@@ -61,6 +65,34 @@ function App() {
     }
     setItemInput({ name: '', price: 0, category: '', taxable: false });
     setCategoryTypeahead([]);
+  };
+
+  // Start editing an item
+  const handleEdit = (idx: number) => {
+    setEditingIdx(idx);
+    setEditInput({ ...items[idx] });
+  };
+
+  // Save edited item
+  const handleSave = (idx: number) => {
+    if (!editInput) return;
+    const updatedItems = [...items];
+    updatedItems[idx] = { ...editInput, price: Number(editInput.price) };
+    setItems(updatedItems);
+    setEditingIdx(null);
+    setEditInput(null);
+  };
+
+  // Cancel editing
+  const handleCancel = () => {
+    setEditingIdx(null);
+    setEditInput(null);
+  };
+
+  // Handle edit input changes
+  const handleEditInputChange = (field: keyof LineItem, value: string | boolean) => {
+    if (!editInput) return;
+    setEditInput((prev) => prev ? { ...prev, [field]: value } : null);
   };
 
   // Calculate totals and after-tax as items are added
@@ -177,17 +209,79 @@ function App() {
               <th className="p-2 text-left">Price</th>
               <th className="p-2 text-left">Category</th>
               <th className="p-2 text-center">Taxable</th>
+              <th className="p-2 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => (
-              <tr key={idx} className="border-t">
-                <td className="p-2">{item.name}</td>
-                <td className="p-2">${item.price.toFixed(2)}</td>
-                <td className="p-2">{item.category}</td>
-                <td className="p-2 text-center">{item.taxable ? '✔️' : ''}</td>
-              </tr>
-            ))}
+            {items.map((item, idx) => {
+              if (editingIdx === idx) {
+                return (
+                  <tr key={idx} className="border-t">
+                    <td className="p-2">
+                      <input
+                        value={editInput?.name || ''}
+                        onChange={e => handleEditInputChange('name', e.target.value)}
+                        className="w-32 border-gray-300 rounded-md shadow-sm"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        min="0"
+                        value={editInput?.price || 0}
+                        onChange={e => handleEditInputChange('price', e.target.value)}
+                        className="w-20 border-gray-300 rounded-md shadow-sm"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        value={editInput?.category || ''}
+                        onChange={e => handleEditInputChange('category', e.target.value)}
+                        className="w-24 border-gray-300 rounded-md shadow-sm"
+                      />
+                    </td>
+                    <td className="p-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={!!editInput?.taxable}
+                        onChange={e => handleEditInputChange('taxable', e.target.checked)}
+                      />
+                    </td>
+                    <td className="p-2 flex gap-2">
+                      <button
+                        className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        onClick={() => handleSave(idx)}
+                      >
+                        Save
+                      </button>
+                      <button
+                        className="px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500"
+                        onClick={handleCancel}
+                      >
+                        Cancel
+                      </button>
+                    </td>
+                  </tr>
+                );
+              } else {
+                return (
+                  <tr key={idx} className="border-t">
+                    <td className="p-2">{item.name}</td>
+                    <td className="p-2">${item.price.toFixed(2)}</td>
+                    <td className="p-2">{item.category}</td>
+                    <td className="p-2 text-center">{item.taxable ? '✔️' : ''}</td>
+                    <td className="p-2">
+                      <button
+                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        onClick={() => handleEdit(idx)}
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
+            })}
           </tbody>
         </table>
       </div>
