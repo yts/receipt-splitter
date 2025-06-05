@@ -40,10 +40,6 @@ function App() {
   const [categoryTypeahead, setCategoryTypeahead] = useState<string[]>([]);
   const categoryInputRef = useRef<HTMLInputElement>(null);
 
-  // Totals
-  const [categoryTotals, setCategoryTotals] = useState<CategoryTotals>({});
-  const [afterTaxTotals, setAfterTaxTotals] = useState<CategoryTotals>({});
-
   // Editing state
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editInput, setEditInput] = useState<LineItem | null>(null);
@@ -95,8 +91,8 @@ function App() {
     setEditInput((prev) => prev ? { ...prev, [field]: value } : null);
   };
 
-  // Calculate totals and after-tax as items are added
-  useEffect(() => {
+  // Compute totals and after-tax totals during render
+  const computeTotals = () => {
     const totals: CategoryTotals = {};
     const afterTax: CategoryTotals = {};
     const rate = parseFloat(taxRate) / 100;
@@ -117,9 +113,10 @@ function App() {
     Object.keys(afterTax).forEach((cat) => {
       afterTax[cat].afterTax = +afterTax[cat].afterTax!.toFixed(2);
     });
-    setCategoryTotals(totals);
-    setAfterTaxTotals(afterTax);
-  }, [items, taxRate]);
+    return { totals, afterTax };
+  };
+
+  const { totals: categoryTotals, afterTax: afterTaxTotals } = computeTotals();
 
   // Render
   return (
