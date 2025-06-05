@@ -269,7 +269,18 @@ function App() {
                     <td className="p-2">{item.name}</td>
                     <td className="p-2">${item.price.toFixed(2)}</td>
                     <td className="p-2">{item.category}</td>
-                    <td className="p-2 text-center">{item.taxable ? '✔️' : ''}</td>
+                    <td className="p-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={item.taxable}
+                        onChange={e => {
+                          const updatedItems = [...items];
+                          updatedItems[idx] = { ...item, taxable: e.target.checked };
+                          setItems(updatedItems);
+                        }}
+                        className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                    </td>
                     <td className="p-2">
                       <button
                         className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 w-full sm:w-auto"
