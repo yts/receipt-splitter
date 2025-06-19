@@ -1,34 +1,35 @@
 import { useEffect, useState, useRef } from 'react';
-
-// Types
-interface LineItem {
-  name: string;
-  price: number;
-  category: string;
-  taxable: boolean;
-}
-
-interface CategoryTotals {
-  [category: string]: {
-    subtotal: number;
-    discount: number;
-    tax: number;
-    total: number;
-  };
-}
+import type { CategoryTotals, LineItem } from './types';
+import {type  ReceiptState, getStateFromUrl, updateUrl } from './lib/url-state';
 
 const TAX_RATE_KEY = 'taxRate';
 const CATEGORIES_KEY = 'categories';
 
 function App() {
-  // Tax Rate
-  const [taxRate, setTaxRate] = useState<string>(() => localStorage.getItem(TAX_RATE_KEY) || '');
-  const [discountType, setDiscountType] = useState<'percentage' | 'amount'>('percentage');
-  const [discountValue, setDiscountValue] = useState<string>('');
+  // Load initial state from URL or defaults
+  const initialState = getStateFromUrl() || {
+    items: [],
+    taxRate: localStorage.getItem(TAX_RATE_KEY) || '',
+    discountType: 'percentage' as const,
+    discountValue: '',
+  };
 
+  // State
+  const [items, setItems] = useState<LineItem[]>(initialState.items);
+  const [taxRate, setTaxRate] = useState<string>(initialState.taxRate);
+  const [discountType, setDiscountType] = useState<'percentage' | 'amount'>(initialState.discountType);
+  const [discountValue, setDiscountValue] = useState<string>(initialState.discountValue);
+
+  // Sync state with URL
   useEffect(() => {
-    localStorage.setItem(TAX_RATE_KEY, taxRate);
-  }, [taxRate]);
+    const state: ReceiptState = {
+      items,
+      taxRate,
+      discountType,
+      discountValue,
+    };
+    updateUrl(state);
+  }, [items, taxRate, discountType, discountValue]);
 
   // Categories
   const [categories, setCategories] = useState<string[]>(() => {
@@ -40,7 +41,6 @@ function App() {
   }, [categories]);
 
   // Line Items
-  const [items, setItems] = useState<LineItem[]>([]);
   const [itemInput, setItemInput] = useState<LineItem>({ name: '', price: 0, category: '', taxable: false });
   const [categoryTypeahead, setCategoryTypeahead] = useState<string[]>([]);
   const categoryInputRef = useRef<HTMLInputElement>(null);
