@@ -1,15 +1,17 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
+import { TrashIcon } from 'lucide-react';
 import type { CategoryTotals, LineItem } from './types';
 import { type ReceiptState, getStateFromUrl, updateUrl } from './lib/url-state';
 import { ReceiptScanner } from './components/ReceiptScanner';
 
 const TAX_RATE_KEY = 'taxRate';
 const CATEGORIES_KEY = 'categories';
+const EMPTY_ITEM: LineItem = { name: '', price: 0, category: '', taxable: false };
 
 function App() {
   // Load initial state from URL or defaults
   const initialState = getStateFromUrl() || {
-    items: [],
+    items: [EMPTY_ITEM], // Always start with an empty row
     taxRate: localStorage.getItem(TAX_RATE_KEY) || '',
     discountType: 'percentage' as const,
     discountValue: '',
@@ -20,11 +22,21 @@ function App() {
   const [taxRate, setTaxRate] = useState<string>(initialState.taxRate);
   const [discountType, setDiscountType] = useState<'percentage' | 'amount'>(initialState.discountType);
   const [discountValue, setDiscountValue] = useState<string>(initialState.discountValue);
+  const [categoryTypeaheadIndex, setCategoryTypeaheadIndex] = useState<number | null>(null);
 
-  // Sync state with URL
+  // Ensure there's always an empty row at the end
+  useEffect(() => {
+    const lastItem = items[items.length - 1];
+    const isLastItemEmpty = !lastItem.name && !lastItem.price && !lastItem.category && !lastItem.taxable;
+    if (!isLastItemEmpty) {
+      setItems(prev => [...prev, EMPTY_ITEM]);
+    }
+  }, [items]);
+
+  // Sync state with URL - exclude the empty row from URL state
   useEffect(() => {
     const state: ReceiptState = {
-      items,
+      items: items.filter(item => item.name || item.price || item.category || item.taxable),
       taxRate,
       discountType,
       discountValue,
@@ -37,69 +49,56 @@ function App() {
     const stored = localStorage.getItem(CATEGORIES_KEY);
     return stored ? JSON.parse(stored) : [];
   });
+
   useEffect(() => {
     localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
   }, [categories]);
 
-  // Line Items
-  const [itemInput, setItemInput] = useState<LineItem>({ name: '', price: 0, category: '', taxable: false });
-  const [categoryTypeahead, setCategoryTypeahead] = useState<string[]>([]);
-  const categoryInputRef = useRef<HTMLInputElement>(null);
-
-  // Editing state
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [editInput, setEditInput] = useState<LineItem | null>(null);
-
-  // Handle item input changes
-  const handleItemChange = (field: keyof LineItem, value: string | boolean) => {
-    setItemInput((prev) => ({ ...prev, [field]: value }));
-    if (field === 'category' && typeof value === 'string') {
-      setCategoryTypeahead(categories.filter((cat) => cat.toLowerCase().includes(value.toLowerCase())));
-    }
-  };
-
-  // Add item
-  const handleAddItem = () => {
-    if (!itemInput.category) return;
-    setItems((prev) => [...prev, { ...itemInput, price: Number(itemInput.price) }]);
-    if (itemInput.category && !categories.includes(itemInput.category)) {
-      setCategories((prev) => [...prev, itemInput.category]);
-    }
-    setItemInput({ name: '', price: 0, category: '', taxable: false });
-    setCategoryTypeahead([]);
-  };
-
-  // Start editing an item
-  const handleEdit = (idx: number) => {
-    setEditingIdx(idx);
-    setEditInput({ ...items[idx] });
-  };
-
-  // Save edited item
-  const handleSave = (idx: number) => {
-    if (!editInput) return;
-    const updatedItems = [...items];
-    updatedItems[idx] = { ...editInput, price: Number(editInput.price) };
-    setItems(updatedItems);
-    setEditingIdx(null);
-    setEditInput(null);
-  };
-
-  // Cancel editing
-  const handleCancel = () => {
-    setEditingIdx(null);
-    setEditInput(null);
-  };
-
-  // Handle edit input changes
-  const handleEditInputChange = (field: keyof LineItem, value: string | boolean) => {
-    if (!editInput) return;
-    setEditInput((prev) => prev ? { ...prev, [field]: value } : null);
-  };
-
-  // Add function to handle imported receipt items
+  // Add imported items
   const handleImportedItems = (importedItems: LineItem[]) => {
-    setItems(prev => [...prev, ...importedItems]);
+    setItems(prev => {
+      const currentItems = prev.slice(0, -1); // Remove the empty row
+      return [...currentItems, ...importedItems, EMPTY_ITEM]; // Add imported items and a new empty row
+    });
+  };
+
+  // Handle item changes
+  const handleItemChange = (index: number, field: keyof LineItem, value: string | boolean | number) => {
+    const updatedItems = [...items];
+    if (field === 'price') {
+      // Allow empty price field
+      updatedItems[index] = { 
+        ...items[index], 
+        [field]: value === '' ? 0 : Number(value)
+      };
+    } else {
+      updatedItems[index] = { ...items[index], [field]: value };
+    }
+    
+    // If it's a category change and the category is new, add it to the list
+    if (field === 'category' && typeof value === 'string' && value && !categories.includes(value)) {
+      setCategories(prev => [...prev, value]);
+    }
+    
+    setItems(updatedItems);
+  };
+
+  // Delete item
+  const handleDeleteItem = (index: number) => {
+    setItems(prev => {
+      const newItems = prev.filter((_, i) => i !== index);
+      // If we deleted the last non-empty row, make sure we still have an empty row
+      const lastItem = newItems[newItems.length - 1];
+      if (!lastItem || lastItem.name || lastItem.price || lastItem.category || lastItem.taxable) {
+        newItems.push(EMPTY_ITEM);
+      }
+      return newItems;
+    });
+  };
+
+  // Get category suggestions for a specific item
+  const getCategorySuggestions = (value: string) => {
+    return categories.filter(cat => cat.toLowerCase().includes(value.toLowerCase()));
   };
 
   const computeTotals = () => {
@@ -152,7 +151,6 @@ function App() {
     <div className="max-w-2xl mx-auto p-2 sm:p-6 space-y-8">
       <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center">Receipt Splitter</h1>
 
-      {/* Add ReceiptScanner component */}
       <div className="flex justify-end">
         <ReceiptScanner onImport={handleImportedItems} />
       </div>
@@ -168,6 +166,7 @@ function App() {
             step="0.01"
             value={taxRate}
             onChange={(e) => setTaxRate(e.target.value)}
+            onBlur={() => localStorage.setItem(TAX_RATE_KEY, taxRate)}
             className="w-full sm:w-32 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
           />
         </div>
@@ -195,69 +194,8 @@ function App() {
           </div>
         </div>
       </div>
-      {/* Line Item Entry */}
-      <div className="flex flex-col gap-2 border p-2 sm:p-4 rounded-lg">
-        <div className="flex flex-col sm:flex-row gap-2 w-full">
-          <input
-            placeholder="Item Name (optional)"
-            value={itemInput.name}
-            onChange={(e) => handleItemChange('name', e.target.value)}
-            className="w-full sm:w-40 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <input
-            placeholder="Price"
-            type="number"
-            min="0"
-            value={itemInput.price}
-            onChange={(e) => handleItemChange('price', e.target.value)}
-            className="w-full sm:w-24 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <div className="relative w-full sm:w-32">
-            <input
-              ref={categoryInputRef}
-              placeholder="Category"
-              value={itemInput.category}
-              onChange={(e) => handleItemChange('category', e.target.value)}
-              className="border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 w-full"
-              autoComplete="off"
-            />
-            {categoryTypeahead.length > 0 && (
-              <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-32 overflow-y-auto">
-                {categoryTypeahead.map((cat) => (
-                  <div
-                    key={cat}
-                    className="px-2 py-1 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => {
-                      handleItemChange('category', cat);
-                      setCategoryTypeahead([]);
-                      categoryInputRef.current?.blur();
-                    }}
-                  >
-                    {cat}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <input
-              id="taxable"
-              type="checkbox"
-              checked={itemInput.taxable}
-              onChange={(e) => handleItemChange('taxable', e.target.checked)}
-              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-            />
-            <label htmlFor="taxable" className="text-sm font-medium text-gray-700">Taxable</label>
-          </div>
-          <button
-            onClick={handleAddItem}
-            className="w-full sm:w-auto ml-0 sm:ml-2 px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-          >
-            Add Item
-          </button>
-        </div>
-      </div>
-      {/* Items List */}
+
+      {/* Items Table */}
       <div className="overflow-x-auto">
         <table className="w-full border mt-4 text-sm">
           <thead>
@@ -270,94 +208,89 @@ function App() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => {
-              if (editingIdx === idx) {
-                return (
-                  <tr key={idx} className="border-t">
-                    <td className="p-2">
-                      <input
-                        value={editInput?.name || ''}
-                        onChange={e => handleEditInputChange('name', e.target.value)}
-                        className="w-full border-gray-300 rounded-md shadow-sm"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <input
-                        type="number"
-                        min="0"
-                        value={editInput?.price || 0}
-                        onChange={e => handleEditInputChange('price', e.target.value)}
-                        className="w-full border-gray-300 rounded-md shadow-sm"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <input
-                        value={editInput?.category || ''}
-                        onChange={e => handleEditInputChange('category', e.target.value)}
-                        className="w-full border-gray-300 rounded-md shadow-sm"
-                      />
-                    </td>
-                    <td className="p-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={!!editInput?.taxable}
-                        onChange={e => handleEditInputChange('taxable', e.target.checked)}
-                      />
-                    </td>
-                    <td className="p-2 flex flex-col sm:flex-row gap-2">
-                      <button
-                        className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 w-full sm:w-auto"
-                        onClick={() => handleSave(idx)}
-                      >
-                        Save
-                      </button>
-                      <button
-                        className="px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 w-full sm:w-auto"
-                        onClick={handleCancel}
-                      >
-                        Cancel
-                      </button>
-                    </td>
-                  </tr>
-                );
-              } else {
-                return (
-                  <tr key={idx} className="border-t">
-                    <td className="p-2">{item.name}</td>
-                    <td className="p-2">${item.price.toFixed(2)}</td>
-                    <td className="p-2">{item.category}</td>
-                    <td className="p-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={item.taxable}
-                        onChange={e => {
-                          const updatedItems = [...items];
-                          updatedItems[idx] = { ...item, taxable: e.target.checked };
-                          setItems(updatedItems);
-                        }}
-                        className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <button
-                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 w-full sm:w-auto"
-                        onClick={() => handleEdit(idx)}
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                );
-              }
-            })}
+            {items.map((item, idx) => (
+              <tr key={idx} className="border-t">
+                <td className="p-2">
+                  <input
+                    value={item.name}
+                    onChange={e => handleItemChange(idx, 'name', e.target.value)}
+                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Item name"
+                  />
+                </td>
+                <td className="p-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.price || ''} /* Display empty string instead of 0 */
+                    onChange={e => handleItemChange(idx, 'price', e.target.value)}
+                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Price"
+                  />
+                </td>
+                <td className="p-2 relative">
+                  <input
+                    value={item.category}
+                    onChange={e => {
+                      handleItemChange(idx, 'category', e.target.value);
+                      setCategoryTypeaheadIndex(idx);
+                    }}
+                    onBlur={() => {
+                      // Delay hiding suggestions to allow clicking them
+                      setTimeout(() => setCategoryTypeaheadIndex(null), 200);
+                    }}
+                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Category"
+                  />
+                  {categoryTypeaheadIndex === idx && item.category && (
+                    <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-32 overflow-y-auto">
+                      {getCategorySuggestions(item.category).map(cat => (
+                        <div
+                          key={cat}
+                          className="px-2 py-1 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => {
+                            handleItemChange(idx, 'category', cat);
+                            setCategoryTypeaheadIndex(null);
+                          }}
+                        >
+                          {cat}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td className="p-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={item.taxable}
+                    onChange={e => handleItemChange(idx, 'taxable', e.target.checked)}
+                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                </td>
+                <td className="p-2 text-center">
+                  {/* Only show delete button for non-empty rows */}
+                  {(item.name || item.price || item.category || item.taxable) && (
+                    <button
+                      onClick={() => handleDeleteItem(idx)}
+                      className="p-1 text-red-600 hover:text-red-700 rounded-full hover:bg-red-50"
+                    >
+                      <TrashIcon className="w-5 h-5" />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
+
       {/* Totals Section */}
       <div className="mt-8 overflow-x-auto">
         <h2 className="text-xl font-semibold mb-2 text-center sm:text-left">Totals</h2>
         <table className="w-full border text-sm">
-          <thead>            <tr className="bg-gray-100">
+          <thead>
+            <tr className="bg-gray-100">
               <th className="p-2 text-left">Category</th>
               <th className="p-2 text-left">Subtotal</th>
               <th className="p-2 text-left">Discount</th>
