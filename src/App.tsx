@@ -10,8 +10,10 @@ interface LineItem {
 
 interface CategoryTotals {
   [category: string]: {
+    subtotal: number;
+    discount: number;
+    tax: number;
     total: number;
-    afterTax: number | null;
   };
 }
 
@@ -21,6 +23,9 @@ const CATEGORIES_KEY = 'categories';
 function App() {
   // Tax Rate
   const [taxRate, setTaxRate] = useState<string>(() => localStorage.getItem(TAX_RATE_KEY) || '');
+  const [discountType, setDiscountType] = useState<'percentage' | 'amount'>('percentage');
+  const [discountValue, setDiscountValue] = useState<string>('');
+
   useEffect(() => {
     localStorage.setItem(TAX_RATE_KEY, taxRate);
   }, [taxRate]);
@@ -91,49 +96,90 @@ function App() {
     setEditInput((prev) => prev ? { ...prev, [field]: value } : null);
   };
 
-  // Compute totals and after-tax totals during render
   const computeTotals = () => {
     const totals: CategoryTotals = {};
-    const afterTax: CategoryTotals = {};
     const rate = parseFloat(taxRate) / 100;
+    const dValue = parseFloat(discountValue) || 0;
+
+    // Calculate initial subtotals
     items.forEach((item) => {
       if (!totals[item.category]) {
-        totals[item.category] = { total: 0, afterTax: null };
-        afterTax[item.category] = { total: 0, afterTax: 0 };
+        totals[item.category] = { subtotal: 0, discount: 0, tax: 0, total: 0 };
       }
-      totals[item.category].total += item.price;
-      afterTax[item.category].total += item.price;
-      if (item.taxable) {
-        afterTax[item.category].afterTax! += item.price * (1 + rate);
+      totals[item.category].subtotal += item.price;
+    });
+
+    // Calculate total subtotal for percentage discount distribution
+    const totalSubtotal = Object.values(totals).reduce((sum, val) => sum + val.subtotal, 0);
+
+    // Apply discounts and calculate tax and totals
+    Object.keys(totals).forEach((cat) => {
+      // Calculate discount
+      if (discountType === 'percentage') {
+        totals[cat].discount = totals[cat].subtotal * (dValue / 100);
       } else {
-        afterTax[item.category].afterTax! += item.price;
+        // Distribute flat discount proportionally
+        totals[cat].discount = dValue * (totals[cat].subtotal / totalSubtotal);
       }
+
+      const afterDiscount = totals[cat].subtotal - totals[cat].discount;
+
+      // Calculate tax on discounted amount
+      totals[cat].tax = items
+        .filter(item => item.category === cat && item.taxable)
+        .reduce((sum, item) => {
+          const itemDiscount = item.price / totals[cat].subtotal * totals[cat].discount;
+          return sum + ((item.price - itemDiscount) * rate);
+        }, 0);
+
+      // Calculate final total
+      totals[cat].total = afterDiscount + totals[cat].tax;
     });
-    // Round afterTax values
-    Object.keys(afterTax).forEach((cat) => {
-      afterTax[cat].afterTax = +afterTax[cat].afterTax!.toFixed(2);
-    });
-    return { totals, afterTax };
+
+    return { totals };
   };
 
-  const { totals: categoryTotals, afterTax: afterTaxTotals } = computeTotals();
+  const { totals: categoryTotals } = computeTotals();
 
   // Render
   return (
     <div className="max-w-2xl mx-auto p-2 sm:p-6 space-y-8">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center">Receipt Splitter</h1>
-      {/* Tax Rate Input */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-        <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700">Tax Rate (%)</label>
-        <input
-          id="taxRate"
-          type="number"
-          min="0"
-          step="0.01"
-          value={taxRate}
-          onChange={(e) => setTaxRate(e.target.value)}
-          className="w-full sm:w-32 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-        />
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center">Receipt Splitter</h1>      {/* Tax Rate and Discount Inputs */}      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="taxRate" className="text-sm font-medium text-gray-700">Tax Rate (%)</label>
+          <input
+            id="taxRate"
+            type="number"
+            min="0"
+            step="0.01"
+            value={taxRate}
+            onChange={(e) => setTaxRate(e.target.value)}
+            className="w-full sm:w-32 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="discount" className="text-sm font-medium text-gray-700">Discount</label>
+          <div className="flex gap-2">
+            <select
+              value={discountType}
+              onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'amount')}
+              className="border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="percentage">%</option>
+              <option value="amount">$</option>
+            </select>
+            <input
+              id="discount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={discountValue}
+              onChange={(e) => setDiscountValue(e.target.value)}
+              className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder={discountType === 'percentage' ? 'Percentage' : 'Amount'}
+            />
+          </div>
+        </div>
       </div>
       {/* Line Item Entry */}
       <div className="flex flex-col gap-2 border p-2 sm:p-4 rounded-lg">
@@ -297,30 +343,37 @@ function App() {
       <div className="mt-8 overflow-x-auto">
         <h2 className="text-xl font-semibold mb-2 text-center sm:text-left">Totals</h2>
         <table className="w-full border text-sm">
-          <thead>
-            <tr className="bg-gray-100">
+          <thead>            <tr className="bg-gray-100">
               <th className="p-2 text-left">Category</th>
+              <th className="p-2 text-left">Subtotal</th>
+              <th className="p-2 text-left">Discount</th>
+              <th className="p-2 text-left">Tax</th>
               <th className="p-2 text-left">Total</th>
-              <th className="p-2 text-left">After Tax</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(categoryTotals).map(([cat, val]) => (
               <tr key={cat} className="border-t">
                 <td className="p-2">{cat}</td>
+                <td className="p-2">${val.subtotal.toFixed(2)}</td>
+                <td className="p-2">${val.discount.toFixed(2)}</td>
+                <td className="p-2">${val.tax.toFixed(2)}</td>
                 <td className="p-2">${val.total.toFixed(2)}</td>
-                <td className="p-2">{afterTaxTotals[cat]?.afterTax !== null ? `$${afterTaxTotals[cat]?.afterTax?.toFixed(2)}` : '---'}</td>
               </tr>
             ))}
             <tr className="font-bold border-t">
               <td className="p-2">Total</td>
               <td className="p-2">
-                ${Object.values(categoryTotals).reduce((sum, val) => sum + val.total, 0).toFixed(2)}
+                ${Object.values(categoryTotals).reduce((sum, val) => sum + val.subtotal, 0).toFixed(2)}
               </td>
               <td className="p-2">
-                {Object.values(afterTaxTotals).length
-                  ? `$${Object.values(afterTaxTotals).reduce((sum, val) => sum + (val.afterTax ?? 0), 0).toFixed(2)}`
-                  : '---'}
+                ${Object.values(categoryTotals).reduce((sum, val) => sum + val.discount, 0).toFixed(2)}
+              </td>
+              <td className="p-2">
+                ${Object.values(categoryTotals).reduce((sum, val) => sum + val.tax, 0).toFixed(2)}
+              </td>
+              <td className="p-2">
+                ${Object.values(categoryTotals).reduce((sum, val) => sum + val.total, 0).toFixed(2)}
               </td>
             </tr>
           </tbody>
