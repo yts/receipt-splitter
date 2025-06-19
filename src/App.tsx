@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import type { CategoryTotals, LineItem } from './types';
-import {type  ReceiptState, getStateFromUrl, updateUrl } from './lib/url-state';
+import { type ReceiptState, getStateFromUrl, updateUrl } from './lib/url-state';
+import { ReceiptScanner } from './components/ReceiptScanner';
 
 const TAX_RATE_KEY = 'taxRate';
 const CATEGORIES_KEY = 'categories';
@@ -96,6 +97,11 @@ function App() {
     setEditInput((prev) => prev ? { ...prev, [field]: value } : null);
   };
 
+  // Add function to handle imported receipt items
+  const handleImportedItems = (importedItems: LineItem[]) => {
+    setItems(prev => [...prev, ...importedItems]);
+  };
+
   const computeTotals = () => {
     const totals: CategoryTotals = {};
     const rate = parseFloat(taxRate) / 100;
@@ -144,7 +150,15 @@ function App() {
   // Render
   return (
     <div className="max-w-2xl mx-auto p-2 sm:p-6 space-y-8">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center">Receipt Splitter</h1>      {/* Tax Rate and Discount Inputs */}      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center">Receipt Splitter</h1>
+
+      {/* Add ReceiptScanner component */}
+      <div className="flex justify-end">
+        <ReceiptScanner onImport={handleImportedItems} />
+      </div>
+
+      {/* Tax Rate and Discount Inputs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
         <div className="flex flex-col gap-2">
           <label htmlFor="taxRate" className="text-sm font-medium text-gray-700">Tax Rate (%)</label>
           <input
